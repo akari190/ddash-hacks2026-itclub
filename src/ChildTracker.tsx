@@ -250,7 +250,7 @@ const ChildTracker = () => {
           <MapContainer center={position} zoom={16} style={{ height: '100%', width: '100%' }}>
             {/* 共通コンポーネントを呼び出す。現在地を渡すと自動追従する */}
             <DangerMapContent userPosition={position} />
-                
+
             {/* 現在地マーカー */}
             <Marker position={position} icon={locationIcon} zIndexOffset={1000} />
           </MapContainer>
