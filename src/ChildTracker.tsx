@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, Circle, Popup, useMap } from 'react-le
 import { Shield, AlertTriangle, Settings, User, Activity } from 'lucide-react';
 import L from 'leaflet';
 import { supabase } from './supabaseClient';
+import DangerMapContent from './danger_map';
 
 // --- 1. CSSスタイルの注入（脈動アニメーションと方位ビーム） ---
 const injectStyles = () => {
@@ -247,37 +248,11 @@ const ChildTracker = () => {
         {/* マップ */}
         <div className="h-80 rounded-3xl overflow-hidden shadow-lg border-4 border-white relative">
           <MapContainer center={position} zoom={16} style={{ height: '100%', width: '100%' }}>
-            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-            <RecenterMap coords={position} />
-
-            {/* 危険エリアの円 */}
-            {dangerZones.map((zone: any) => {
-              const lat = parseFloat(zone.latitude);
-              const lng = parseFloat(zone.longitude);
-              const rad = parseFloat(zone.radius);
-              const style = getLevelStyle(zone.danger_level);
-              if (isNaN(lat) || isNaN(lng)) return null;
-            
-              return (
-                <Circle 
-                  key={zone.id} 
-                  center={[lat, lng]} 
-                  radius={rad} 
-                  pathOptions={{ color: style.color, fillColor: style.color, fillOpacity: 0.4, weight: 3 }} 
-                >
-                  <Popup>
-                    <div className="text-center font-bold">
-                      <p className="text-red-600">⚠️ {zone.incident_type}</p>
-                      <p className="text-xs">{zone.name}</p>
-                    </div>
-                  </Popup>
-                </Circle>
-              );
-            })}
-
-            {/* 現在地のMarker（ビーム＋脈動） */}
+            {/* 共通コンポーネントを呼び出す。現在地を渡すと自動追従する */}
+            <DangerMapContent userPosition={position} />
+                
+            {/* 現在地マーカー */}
             <Marker position={position} icon={locationIcon} zIndexOffset={1000} />
-
           </MapContainer>
         </div>
       </div>

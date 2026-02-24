@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Circle, Popup, useMap } from 'react-leaflet';
 import { ShieldCheck, History, Settings, Bell, MapPin, Navigation } from 'lucide-react';
 import L from 'leaflet';
+import DangerMapContent from './danger_map';
 import { supabase } from './supabaseClient';
 
 // --- CSSスタイルの注入（お子様の現在地の脈動アニメーション） ---
@@ -179,43 +180,12 @@ const ParentDashboard = () => {
         </div>
 
         <div className="relative h-[500px] bg-white rounded-[32px] shadow-xl border-4 border-white overflow-hidden">
-          <MapContainer center={[35.0222, 135.9619]} zoom={15} style={{ height: '100%', width: '100%' }}>
-            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-            
-            {dangerZones.map((zone: any) => {
-              const lat = parseFloat(zone.latitude);
-              const lng = parseFloat(zone.longitude);
-              const rad = parseFloat(zone.radius);
-              if (isNaN(lat) || isNaN(lng)) return null;
-              const style = getLevelStyle(zone.danger_level);
-
-              return (
-                <Circle 
-                  key={zone.id} 
-                  center={[lat, lng]} 
-                  radius={rad} 
-                  pathOptions={{ color: style.color, fillColor: style.color, fillOpacity: 0.25, weight: 2 }} 
-                >
-                  <Popup minWidth={220}>
-                    <div className="p-1 font-sans">
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <span className="text-sm font-bold text-slate-800">{zone.name}</span>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold text-white ${style.bg}`}>Lv: {style.label}</span>
-                      </div>
-                      <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-2 rounded border-l-2 border-slate-300">
-                        {zone.description}
-                      </p>
-                    </div>
-                  </Popup>
-                </Circle>
-              );
-            })}
-
-            {isMonitoring && childPos && (
-              <>
-                <RecenterMap coords={childPos} />
-                <Marker position={childPos} icon={childIcon} zIndexOffset={1000} />
-              </>
+          <MapContainer center={childPos || [35.0116, 135.7681]} zoom={15} style={{ height: '100%', width: '100%' }}>
+            {/* 保護者側でも同じ危険エリアを表示。子供の位置を渡して追跡 */}
+            <DangerMapContent userPosition={childPos} />
+                
+            {childPos && (
+              <Marker position={childPos} icon={childIcon} />
             )}
           </MapContainer>
           
