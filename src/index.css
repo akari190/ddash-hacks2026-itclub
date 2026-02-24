@@ -8,6 +8,16 @@
   width: 100%;
 }
 
+@keyframes pulse-white {
+  0% { fill-opacity: 0.2; stroke-opacity: 0.8; }
+  50% { fill-opacity: 0.4; stroke-opacity: 0.4; }
+  100% { fill-opacity: 0.2; stroke-opacity: 0.8; }
+}
+
+.gps-pulse {
+  animation: pulse-white 2s infinite ease-in-out;
+}
+
 /* :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
