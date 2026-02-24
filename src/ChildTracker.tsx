@@ -69,7 +69,7 @@ const RecenterMap = ({ coords }: { coords: [number, number] }) => {
 const ChildTracker = () => {
   // ステート管理
   const [isTracking, setIsTracking] = useState(!!(localStorage.getItem('childId') && localStorage.getItem('parentId')));
-  const [position, setPosition] = useState<[number, number]>([35.0222, 135.9619]); // 初期位置：草津駅
+  const [position, setPosition] = useState<[number, number]>([35.03155851320037, 135.75574742512848]); 
   const [heading, setHeading] = useState<number | null>(null); // デバイスの向き
   const [dangerZones, setDangerZones] = useState([]);
   const [activeZone, setActiveZone] = useState<any>(null);
