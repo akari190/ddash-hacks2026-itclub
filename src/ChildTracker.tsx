@@ -1,9 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { MapContainer, TileLayer, Marker, Circle, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Circle, Popup, useMap } from 'react-leaflet';
 import { Shield, AlertTriangle, Settings, Play, Square, MapPin, User, Activity } from 'lucide-react';
 import L from 'leaflet';
 import { supabase } from './supabaseClient';
 
+const getLevelStyle = (level: string) => {
+  switch (level) {
+    case 'high': return { color: '#ef4444', label: '高', bg: 'bg-red-500' };
+    case 'medium': return { color: '#f97316', label: '中', bg: 'bg-orange-500' };
+    case 'low': return { color: '#eab308', label: '低', bg: 'bg-yellow-500' };
+    default: return { color: '#64748b', label: '不明', bg: 'bg-slate-500' };
+  }
+};
 
 // 地図の自動ズーム制御
 const RecenterMap = ({ coords }: { coords: [number, number] }) => {
@@ -151,29 +159,37 @@ const ChildTracker = () => {
         <MapContainer center={position} zoom={16} style={{ height: '100%', width: '100%' }}>
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
           <RecenterMap coords={position} />
-            
+
           {/* --- 危険エリアの円を描画 (ParentDashboardと統一) --- */}
-          {dangerZones && dangerZones.length > 0 && dangerZones.map((zone: any) => {
-            const lat = parseFloat(zone.latitude);
-            const lng = parseFloat(zone.longitude);
-            const rad = parseFloat(zone.radius);
-            if (isNaN(lat) || isNaN(lng)) return null;
-          
-            return (
-              <Circle 
-                key={zone.id || `${lat}-${lng}`}
-                center={[lat, lng]} 
-                radius={rad} 
-                pathOptions={{ 
-                  color: '#ef4444', 
-                  fillColor: '#ef4444', 
-                  fillOpacity: 0.3, 
-                  weight: 2 
-                }} 
-              />
-            );
-          })}
-      
+          {/* 危険エリアの描画 */}
+            {dangerZones.map((zone: any) => {
+              const lat = parseFloat(zone.latitude);
+              const lng = parseFloat(zone.longitude);
+              const rad = parseFloat(zone.radius);
+              if (isNaN(lat) || isNaN(lng)) return null;
+            
+              const style = getLevelStyle(zone.danger_level);
+            
+              return (
+                <Circle 
+                  key={zone.id} 
+                  center={[lat, lng]} 
+                  radius={rad} 
+                  pathOptions={{ color: style.color, fillColor: style.color, fillOpacity: 0.4, weight: 3 }} 
+                >
+                  <Popup>
+                    <div className="text-center p-1">
+                      <p className={`font-black text-sm mb-1 ${zone.danger_level === 'high' ? 'text-red-600' : 'text-orange-600'}`}>
+                        ⚠️ {zone.incident_type}にちゅうい！
+                      </p>
+                      <p className="text-xs font-bold text-slate-700">{zone.name}</p>
+                      <p className="text-[10px] text-slate-500 mt-2 leading-tight">{zone.description}</p>
+                    </div>
+                  </Popup>
+                </Circle>
+              );
+            })}
+
           {/* --- 子供の現在地表示を Googleマップ風に変更 --- */}
           {/* 1. 外側の細い白い縁取り（光沢感） */}
           <Circle 
@@ -186,7 +202,7 @@ const ChildTracker = () => {
               weight: 1 
             }} 
           />
-      
+
           {/* 2. メインの青いドット（Markerの代わり） */}
           <Circle 
             center={position} 

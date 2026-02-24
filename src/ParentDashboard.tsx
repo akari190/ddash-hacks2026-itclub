@@ -1,7 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Circle, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet';
 import { ShieldCheck, History, Settings, Bell, MapPin, Navigation } from 'lucide-react';
 import { supabase } from './supabaseClient';
+
+const getLevelStyle = (level: string) => {
+  switch (level) {
+    case 'high': return { color: '#ef4444', label: '高', bg: 'bg-red-500' };
+    case 'medium': return { color: '#f97316', label: '中', bg: 'bg-orange-500' };
+    case 'low': return { color: '#eab308', label: '低', bg: 'bg-yellow-500' };
+    default: return { color: '#64748b', label: '不明', bg: 'bg-slate-500' };
+  }
+};
 
 // 自動追従コンポーネント
 const RecenterMap = ({ coords }: { coords: [number, number] }) => {
@@ -109,19 +118,49 @@ const ParentDashboard = () => {
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
             
             {/* --- 危険エリアの円を描画 (ChildTrackerと同じ) --- */}
-            {dangerZones.map((zone: any) => (
-              <Circle 
-                key={zone.id} 
-                center={[parseFloat(zone.latitude), parseFloat(zone.longitude)]} 
-                radius={parseFloat(zone.radius)} 
-                pathOptions={{ 
-                  color: '#ef4444', 
-                  fillColor: '#ef4444', 
-                  fillOpacity: 0.2, // 親側は少し薄めにして見やすく
-                  weight: 1 
-                }} 
-              />
-            ))}
+            {dangerZones.map((zone: any) => {
+              const lat = parseFloat(zone.latitude);
+              const lng = parseFloat(zone.longitude);
+              const rad = parseFloat(zone.radius);
+              if (isNaN(lat) || isNaN(lng)) return null;
+
+              const style = getLevelStyle(zone.danger_level);
+
+              return (
+                <Circle 
+                  key={zone.id} 
+                  center={[lat, lng]} 
+                  radius={rad} 
+                  pathOptions={{ 
+                    color: style.color, 
+                    fillColor: style.color, 
+                    fillOpacity: 0.2,
+                    weight: 2 
+                  }} 
+                >
+                  <Popup minWidth={220}>
+                    <div className="p-1 font-sans">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="text-sm font-bold text-slate-800">{zone.name}</span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold text-white whitespace-nowrap ${style.bg}`}>
+                          Lv: {style.label}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1 mb-2">
+                        <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded border border-slate-200">
+                          {zone.incident_type}
+                        </span>
+                      </div>
+                
+                      <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-2 rounded border-l-2 border-slate-300">
+                        {zone.description}
+                      </p>
+                    </div>
+                  </Popup>
+                </Circle>
+              );
+            })}
 
             {/* 子供の現在地（危険時のみ） */}
             {isDanger && childPos && (
