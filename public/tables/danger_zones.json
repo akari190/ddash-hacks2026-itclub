@@ -411,9 +411,9 @@
  {
     "id": "test_shinmachi_001",
     "name": "同志社大学 新町キャンパス 正門付近",
-    "latitude": 35.030304,
-    "longitude": 135.756545,
-    "radius": 50,
+    "latitude": 35.03155851320037, 
+    "longitude": 135.75574742512848,
+    "radius": 100,
     "danger_level": "medium",
     "incident_type": "不審者声かけ",
     "date": "2026/2/20",
