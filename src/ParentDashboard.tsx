@@ -180,7 +180,7 @@ const ParentDashboard = () => {
         </div>
 
         <div className="relative h-[500px] bg-white rounded-[32px] shadow-xl border-4 border-white overflow-hidden">
-          <MapContainer center={childPos || [35.0116, 135.7681]} zoom={15} style={{ height: '100%', width: '100%' }}>
+          <MapContainer center={childPos || [35.03155851320037, 135.75574742512848]} zoom={15} style={{ height: '100%', width: '100%' }}>
             {/* 保護者側でも同じ危険エリアを表示。子供の位置を渡して追跡 */}
             <DangerMapContent userPosition={childPos} />
                 
