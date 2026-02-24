@@ -25,7 +25,7 @@ const ChildTracker = () => {
 
   // 1. 危険エリアデータの読み込み
   useEffect(() => {
-    fetch('/tables/danger_zones.json')
+    fetch('/public/tables/danger_zones.json')
       .then(res => res.json())
       .then(json => setDangerZones(json.data))
       .catch(err => console.error("データ読み込みエラー:", err));
@@ -147,15 +147,37 @@ const ChildTracker = () => {
 
         {/* マップ */}
         <div className="h-80 rounded-3xl overflow-hidden shadow-lg border-4 border-white relative">
-          <MapContainer center={position} zoom={16} style={{ height: '100%', width: '100%' }}>
-            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-            <RecenterMap coords={position} />
-            <Marker position={position} />
-            {dangerZones.map((zone: any) => (
-              <Circle key={zone.id} center={[zone.latitude, zone.longitude]} radius={zone.radius} 
-                pathOptions={{ color: 'red', fillColor: 'red', fillOpacity: 0.2 }} />
-            ))}
-          </MapContainer>
+          {/* MapContainerの中の書き換え */}
+            <MapContainer center={position} zoom={16} style={{ height: '100%', width: '100%' }}>
+              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+              <RecenterMap coords={position} />
+              <Marker position={position} />
+
+              {/* 修正：dangerZonesが存在し、かつ中身がある時だけ描画するように明示する */}
+              {dangerZones && dangerZones.length > 0 && dangerZones.map((zone: any) => {
+                // 座標が文字列の場合に備えて数値に変換
+                const lat = parseFloat(zone.latitude);
+                const lng = parseFloat(zone.longitude);
+                const rad = parseFloat(zone.radius);
+            
+                // 数値が正しくない（NaN）場合は表示しない
+                if (isNaN(lat) || isNaN(lng)) return null;
+            
+                return (
+                  <Circle 
+                    key={zone.id || `${lat}-${lng}`}
+                    center={[lat, lng]} 
+                    radius={rad} 
+                    pathOptions={{ 
+                      color: '#ef4444',     // 明るい赤 (Tailwind red-500)
+                      fillColor: '#ef4444', 
+                      fillOpacity: 0.4,     // 透明度を少し上げる
+                      weight: 2 
+                    }} 
+                  />
+                );
+              })}
+            </MapContainer>
         </div>
 
         {/* 操作ボタン */}

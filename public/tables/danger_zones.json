@@ -1,0 +1,34 @@
+{
+  "data": [
+    {
+      "id": 1,
+      "name": "草津駅第二小学校",
+      "description": "人通りが多いですが、夜間の細い路地での声かけに注意してください。",
+      "latitude": 35.0222,
+      "longitude": 135.9662,
+      "radius": 300,
+      "danger_level": "medium",
+      "incident_type": "声かけ注意"
+    },
+    {
+      "id": 2,
+      "name": "草津川跡地公園（ai-sai広場付近）",
+      "description": "夕暮れ時、視界が遮られる場所でのひったくりに注意。",
+      "latitude": 35.0255,
+      "longitude": 135.9550,
+      "radius": 300,
+      "danger_level": "low",
+      "incident_type": "不審者情報"
+    },
+    {
+      "id": 3,
+      "name": "国道1号線交差点（草津三丁目付近）",
+      "description": "大型車の通行が多く、右左折時の事故が多発している地点です。",
+      "latitude": 35.0150,
+      "longitude": 135.9580,
+      "radius": 150,
+      "danger_level": "high",
+      "incident_type": "交通事故多発"
+    }
+  ]
+}
