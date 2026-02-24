@@ -407,6 +407,18 @@
     "date": "2019/3/18",
     "time": "16時",
     "description": "窃盗（ひったくり）が発生しました。"
+  },
+ {
+    "id": "test_shinmachi_001",
+    "name": "同志社大学 新町キャンパス 正門付近",
+    "latitude": 35.030304,
+    "longitude": 135.756545,
+    "radius": 50,
+    "danger_level": "medium",
+    "incident_type": "不審者声かけ",
+    "date": "2026/2/20",
+    "time": "18時",
+    "description": "学生に対して、執拗に連絡先を聞いてくる不審な人物が目撃されました。"
   }
 ]
 }
