@@ -1,49 +1,52 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Circle, useMap } from 'react-leaflet';
-import { Shield, AlertTriangle, Settings, Play, Square } from 'lucide-react';
+import { Shield, AlertTriangle, Settings, Play, Square, MapPin, User, Activity } from 'lucide-react';
 import L from 'leaflet';
-import { supabase } from './supabaseClient'; // 追加
+import { supabase } from './supabaseClient';
 
-// アイコン修正
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-});
-
+// 地図の自動ズーム制御
 const RecenterMap = ({ coords }: { coords: [number, number] }) => {
   const map = useMap();
-  useEffect(() => { if (coords) map.setView(coords); }, [coords]);
+  useEffect(() => { if (coords) map.setView(coords, 16); }, [coords]);
   return null;
 };
 
 const ChildTracker = () => {
   const [isTracking, setIsTracking] = useState(false);
-  const [position, setPosition] = useState<[number, number]>([35.0222, 135.9619]); // 草津駅
+  const [position, setPosition] = useState<[number, number]>([35.0222, 135.9619]); // 初期位置：草津駅
   const [dangerZones, setDangerZones] = useState([]);
   const [activeZone, setActiveZone] = useState<any>(null);
-  const [childId, setChildId] = useState(localStorage.getItem('childId') || 'child001');
-  const [parentId, setParentId] = useState(localStorage.getItem('parentId') || 'parent001');
+  const [checkCount, setCheckCount] = useState(0);
+  
+  // 設定情報
+  const [childId, setChildId] = useState(localStorage.getItem('childId') || '');
+  const [parentId, setParentId] = useState(localStorage.getItem('parentId') || '');
+  const [showSettings, setShowSettings] = useState(false);
 
-    useEffect(() => {
-      fetch('/tables/danger_zones.json')
-        .then(res => res.json())
-        .then(json => {
-          console.log("読み込んだ危険エリア:", json.data); // これがコンソールに出るか？
-          setDangerZones(json.data);
-        })
-        .catch(err => console.error("読み込みエラー:", err));
-    }, []);
-    
-  // Supabaseへ送信する関数
-  const sendLocationToDB = async (lat: number, lng: number, isActive: boolean) => {
+  // 1. 危険エリアデータの読み込み
+  useEffect(() => {
+    fetch('/tables/danger_zones.json')
+      .then(res => res.json())
+      .then(json => setDangerZones(json.data))
+      .catch(err => console.error("データ読み込みエラー:", err));
+  }, []);
+
+  // 2. Supabaseへのデータ送信ロジック
+  const sendLocation = useCallback(async (lat: number, lng: number, isActive: boolean) => {
+    if (!childId || !parentId) return;
     const { error } = await supabase
       .from('location_logs')
-      .insert([{ child_id: childId, parent_id: parentId, latitude: lat, longitude: lng, is_active: isActive }]);
-    if (error) console.error("送信エラー:", error.message);
-  };
+      .insert([{ 
+        child_id: childId, 
+        parent_id: parentId, 
+        latitude: lat, 
+        longitude: lng, 
+        is_active: isActive 
+      }]);
+    if (error) console.error("DB送信エラー:", error.message);
+  }, [childId, parentId]);
 
+  // 3. メインの追跡ループ
   useEffect(() => {
     let interval: number;
     if (isTracking) {
@@ -51,34 +54,90 @@ const ChildTracker = () => {
         navigator.geolocation.getCurrentPosition((pos) => {
           const { latitude, longitude } = pos.coords;
           setPosition([latitude, longitude]);
+          setCheckCount(prev => prev + 1);
 
+          // 危険エリア判定
           const foundZone = dangerZones.find((zone: any) => 
             L.latLng(latitude, longitude).distanceTo([zone.latitude, zone.longitude]) <= zone.radius
           );
 
-          if (foundZone) {
-            if (!activeZone) {
-              setActiveZone(foundZone);
-              sendLocationToDB(latitude, longitude, true); // 侵入
-            }
-          } else if (activeZone) {
-            sendLocationToDB(latitude, longitude, false); // 退出
+          if (foundZone && !activeZone) {
+            setActiveZone(foundZone);
+            sendLocation(latitude, longitude, true); // 進入通知
+          } else if (!foundZone && activeZone) {
+            sendLocation(latitude, longitude, false); // 退出通知
             setActiveZone(null);
           }
-        });
+        }, (err) => console.error(err), { enableHighAccuracy: true });
       }, 5000);
     }
     return () => clearInterval(interval);
-  }, [isTracking, dangerZones, activeZone]);
+  }, [isTracking, dangerZones, activeZone, sendLocation]);
+
+  // 設定の保存
+  const saveSettings = () => {
+    localStorage.setItem('childId', childId);
+    localStorage.setItem('parentId', parentId);
+    setShowSettings(false);
+    alert('お子様側の設定を保存しました。');
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 font-sans">
-      <div className="max-w-md mx-auto space-y-4">
-        <div className={`p-6 rounded-3xl shadow-xl transition-all ${activeZone ? 'bg-red-500 text-white animate-pulse' : 'bg-white text-gray-800'}`}>
+    <div className="min-h-screen bg-slate-50 font-sans pb-10">
+      {/* ヘッダー */}
+      <div className="bg-green-600 p-4 shadow-lg flex justify-between items-center text-white">
+        <div className="flex items-center gap-2">
+          <Shield size={24} />
+          <h1 className="text-xl font-bold">SafeWatch Child</h1>
+        </div>
+        <button 
+          onClick={() => setShowSettings(!showSettings)}
+          className="p-2 hover:bg-white/20 rounded-full transition"
+        >
+          <Settings size={24} />
+        </button>
+      </div>
+
+      <div className="max-w-md mx-auto p-4 space-y-4">
+        
+        {/* 設定パネル */}
+        {showSettings && (
+          <div className="bg-white p-6 rounded-3xl shadow-xl border-2 border-green-200 animate-in slide-in-from-top duration-300">
+            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Settings size={18} /> デバイス設定</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-400 ml-1">自分のID (Child ID)</label>
+                <input type="text" placeholder="child001" className="w-full p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-green-400" 
+                  value={childId} onChange={e => setChildId(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-400 ml-1">保護者のID (Parent ID)</label>
+                <input type="text" placeholder="parent001" className="w-full p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-green-400" 
+                  value={parentId} onChange={e => setParentId(e.target.value)} />
+              </div>
+              <button onClick={saveSettings} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold">設定を保存</button>
+            </div>
+          </div>
+        )}
+
+        {/* ユーザー情報表示 */}
+        <div className="flex gap-4">
+          <div className="flex-1 bg-white p-3 rounded-2xl shadow-sm flex items-center gap-3">
+            <User size={16} className="text-slate-400" />
+            <span className="text-sm font-bold text-slate-600">{childId || '未設定'}</span>
+          </div>
+          <div className="flex-1 bg-white p-3 rounded-2xl shadow-sm flex items-center gap-3">
+            <Activity size={16} className="text-slate-400" />
+            <span className="text-sm font-bold text-slate-600">Check: {checkCount}</span>
+          </div>
+        </div>
+
+        {/* ステータスパネル */}
+        <div className={`p-6 rounded-3xl shadow-xl transition-all ${activeZone ? 'bg-red-500 text-white animate-pulse' : 'bg-white text-slate-800'}`}>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm opacity-80 font-bold">現在の状態</p>
-              <h1 className="text-2xl font-black">{activeZone ? '危険エリア内' : '安全に見守り中'}</h1>
+              <h2 className="text-2xl font-black">{isTracking ? (activeZone ? '⚠️ 危険エリア内' : '✅ 正常に動作中') : '💤 停止中'}</h2>
             </div>
             <div className={`p-3 rounded-full ${activeZone ? 'bg-white/20' : 'bg-green-100'}`}>
               {activeZone ? <AlertTriangle size={32} /> : <Shield size={32} className="text-green-600" />}
@@ -86,30 +145,28 @@ const ChildTracker = () => {
           </div>
         </div>
 
-        <div className="h-80 rounded-3xl overflow-hidden shadow-lg border-4 border-white">
-          <MapContainer center={position} zoom={15} style={{ height: '100%', width: '100%' }}>
+        {/* マップ */}
+        <div className="h-80 rounded-3xl overflow-hidden shadow-lg border-4 border-white relative">
+          <MapContainer center={position} zoom={16} style={{ height: '100%', width: '100%' }}>
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
             <RecenterMap coords={position} />
             <Marker position={position} />
             {dangerZones.map((zone: any) => (
-              <Circle 
-                key={zone.id}
-                center={[zone.latitude, zone.longitude]} // ここが数値であることを確認
-                radius={zone.radius}
-                pathOptions={{ 
-                  color: 'red', 
-                  fillColor: 'red', 
-                  fillOpacity: 0.3,
-                  weight: 2 
-                }}
-              />
+              <Circle key={zone.id} center={[zone.latitude, zone.longitude]} radius={zone.radius} 
+                pathOptions={{ color: 'red', fillColor: 'red', fillOpacity: 0.2 }} />
             ))}
           </MapContainer>
         </div>
 
-        <button onClick={() => setIsTracking(!isTracking)} className={`w-full py-5 rounded-2xl font-bold text-lg shadow-lg flex items-center justify-center gap-2 ${isTracking ? 'bg-slate-800 text-white' : 'bg-green-500 text-white'}`}>
-          {isTracking ? <><Square size={20} /> 停止</> : <><Play size={20} /> 開始</>}
+        {/* 操作ボタン */}
+        <button 
+          onClick={() => setIsTracking(!isTracking)} 
+          disabled={!childId || !parentId}
+          className={`w-full py-5 rounded-2xl font-bold text-lg shadow-lg flex items-center justify-center gap-2 transition-transform active:scale-95 ${isTracking ? 'bg-slate-800 text-white' : 'bg-green-500 text-white disabled:opacity-50'}`}
+        >
+          {isTracking ? <><Square size={20} /> 見守りを停止</> : <><Play size={20} /> 見守りを開始</>}
         </button>
+        {!childId && <p className="text-center text-xs text-red-500 font-bold">※右上の設定からIDを入力してください</p>}
       </div>
     </div>
   );
