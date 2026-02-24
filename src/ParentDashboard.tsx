@@ -74,6 +74,42 @@ const ParentDashboard = () => {
   }, []);
 
   useEffect(() => {
+  injectStyles();
+  fetch('/public/tables/danger_zones.json')
+    .then(res => res.json())
+    .then(json => {
+      // 現在の時刻（時）を取得
+      const currentHour = new Date().getHours();
+      
+      // 夜間判定 (20:00以降 または 5:00未満)
+      const isNight = currentHour >= 20 || currentHour < 5;
+
+      const customizedData = json.data.map((zone) => {
+        let finalRadius = 100; // デフォルトの半径
+
+        if (isNight && zone.danger_level === 'high') {
+          // 夜間かつ危険度が高い場合：半径を大きく（例：250m）
+          finalRadius = 250;
+        } else if (zone.danger_level === 'high') {
+          // 昼間だが危険度が高い場合：少し大きめ（例：150m）
+          finalRadius = 150;
+        } else {
+          // それ以外（low/medium）はランダム要素を入れて自然に
+          finalRadius = Math.floor(Math.random() * (120 - 70 + 1)) + 70;
+        }
+
+        return {
+          ...zone,
+          radius: finalRadius
+        };
+      });
+
+      setDangerZones(customizedData);
+    })
+    .catch(err => console.error("データ読み込みエラー:", err));
+}, []);
+
+  useEffect(() => {
     if (!isMonitoring || !parentId || !childId) return;
 
     const channel = supabase
