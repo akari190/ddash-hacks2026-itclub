@@ -1,22 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Circle, useMap } from 'react-leaflet';
-import { ShieldCheck, History, Settings, Bell, MapPin } from 'lucide-react'; // MapPinを追加
+import { ShieldCheck, History, Settings, Bell, MapPin, Navigation } from 'lucide-react';
 import { supabase } from './supabaseClient';
 
+// 自動追従コンポーネント
 const RecenterMap = ({ coords }: { coords: [number, number] }) => {
   const map = useMap();
-  
   useEffect(() => {
     if (coords) {
-      // flyTo を使うことで、カクカクせず「スーッ」と動きます
-      // 17 はズームレベルです（お好みで 16-18 くらいが最適）
-      map.flyTo(coords, 17, {
-        animate: true,
-        duration: 1.5 // 1.5秒かけて移動（滑らかさ重視）
-      });
+      map.flyTo(coords, 17, { animate: true, duration: 1.5 });
     }
-  }, [coords, map]); // coords が更新されるたびに発火
-
+  }, [coords, map]);
   return null;
 };
 
@@ -25,75 +19,46 @@ const ParentDashboard = () => {
   const [childPos, setChildPos] = useState<[number, number] | null>(null);
   const [isDanger, setIsDanger] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
-  
+  const [dangerZones, setDangerZones] = useState<any[]>([]); // 危険エリア保持用
+
   const [parentId, setParentId] = useState(localStorage.getItem('parent_parentId') || '');
   const [childId, setChildId] = useState(localStorage.getItem('parent_childId') || '');
   const [showSettings, setShowSettings] = useState(false);
 
-  // --- 住所を取得する関数を追加 ---
-  const getAddress = async (lat: number, lng: number) => {
-    try {
-      // 1. ユーザーエージェントの問題を避けるため、ブラウザに任せたシンプルなリクエストにする
-      // 2. httpsであることを明示
-      const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
-      
-      const res = await fetch(url);
+  // 1. 危険エリアデータを読み込む (ChildTrackerと同じ処理)
+  useEffect(() => {
+    fetch('/public/tables/danger_zones.json')
+      .then(res => res.json())
+      .then(json => setDangerZones(json.data))
+      .catch(err => console.error("エリアデータ読み込みエラー:", err));
+  }, []);
 
-      if (!res.ok) throw new Error('Network response was not ok');
-
-      const data = await res.json();
-
-      // 日本の住所形式に合わせて、表示名を整理
-      // Nominatimは住所を後ろから繋げる傾向があるので、地名に近い方を取り出す
-      if (data.address) {
-        const a = data.address;
-        return `${a.city || a.town || a.village || ''} ${a.suburb || ''} ${a.road || ''} ${a.house_number || ''}`.trim() || data.display_name.split(',')[0];
-      }
-      
-      return data.display_name.split(',')[0] || "住所不明";
-    } catch (err) {
-      console.error("住所取得エラー:", err);
-      // エラー時は緯度経度を代わりに表示しておくと親切
-      return `住所取得不可 (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
-    }
-  };
-  const saveSettings = () => {
-    localStorage.setItem('parent_parentId', parentId);
-    localStorage.setItem('parent_childId', childId);
-    setShowSettings(false);
-    alert('設定を保存しました。');
-  };
-
+  // 2. リアルタイム監視
   useEffect(() => {
     if (!isMonitoring || !parentId || !childId) return;
 
     const channel = supabase
       .channel('realtime-location')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'location_logs' }, async (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'location_logs' }, (payload) => {
         const newLog = payload.new;
         if (newLog.parent_id === parentId && newLog.child_id === childId) {
-          const time = new Date().toLocaleTimeString();
-          
           if (newLog.is_active) {
-              setChildPos([newLog.latitude, newLog.longitude]);
-              setIsDanger(true);
-
-              // 履歴に座標を直接入れる
-              setHistory(prev => [{ 
-                time: new Date().toLocaleTimeString(), 
-                status: '⚠️ 危険エリア進入', 
-                lat: newLog.latitude, 
-                lng: newLog.longitude 
-              }, ...prev].slice(0, 10));
-            } else {
-              setIsDanger(false);
-              setChildPos(null);
-              setHistory(prev => [{ 
-                time: new Date().toLocaleTimeString(), 
-                status: '✅ 安全圏へ移動', 
-                lat: null, 
-                lng: null 
-              }, ...prev].slice(0, 10));
+            setChildPos([newLog.latitude, newLog.longitude]);
+            setIsDanger(true);
+            setHistory(prev => [{ 
+              time: new Date().toLocaleTimeString(), 
+              status: '⚠️ 危険エリア進入', 
+              lat: newLog.latitude, 
+              lng: newLog.longitude 
+            }, ...prev].slice(0, 10));
+          } else {
+            setIsDanger(false);
+            setChildPos(null);
+            setHistory(prev => [{ 
+              time: new Date().toLocaleTimeString(), 
+              status: '✅ 安全圏へ移動', 
+              lat: null, lng: null 
+            }, ...prev].slice(0, 10));
           }
         }
       })
@@ -101,9 +66,16 @@ const ParentDashboard = () => {
     return () => { supabase.removeChannel(channel); };
   }, [isMonitoring, parentId, childId]);
 
+  const saveSettings = () => {
+    localStorage.setItem('parent_parentId', parentId);
+    localStorage.setItem('parent_childId', childId);
+    setShowSettings(false);
+    alert('設定を保存しました。');
+  };
+
   return (
-    <div className="min-h-screen bg-indigo-50 font-sans pb-10 text-slate-900">
-      <div className="bg-indigo-700 p-4 text-white shadow-lg flex justify-between items-center">
+    <div className="min-h-screen bg-indigo-50 font-sans pb-10">
+      <div className="bg-indigo-700 p-4 text-white shadow-lg flex justify-between items-center text-white">
         <h1 className="text-xl font-bold flex items-center gap-2"><ShieldCheck /> SafeWatch Parent</h1>
         <button onClick={() => setShowSettings(!showSettings)} className="p-2 hover:bg-white/20 rounded-full transition"><Settings /></button>
       </div>
@@ -112,7 +84,7 @@ const ParentDashboard = () => {
         {/* 設定パネル */}
         {showSettings && (
           <div className="bg-white p-6 rounded-3xl shadow-xl border-2 border-indigo-200">
-            <h3 className="font-bold mb-4 flex items-center gap-2 text-indigo-900"><Settings size={18}/> 監視設定</h3>
+            <h3 className="font-bold mb-4 flex items-center gap-2"><Settings size={18}/> 監視設定</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <input type="text" className="p-3 bg-slate-50 border rounded-xl" value={parentId} onChange={e => setParentId(e.target.value)} placeholder="保護者ID" />
               <input type="text" className="p-3 bg-slate-50 border rounded-xl" value={childId} onChange={e => setChildId(e.target.value)} placeholder="お子様ID" />
@@ -131,64 +103,59 @@ const ParentDashboard = () => {
           </button>
         </div>
 
-        {/* マップ：常に表示 */}
+        {/* マップ */}
         <div className="relative h-[500px] bg-white rounded-[32px] shadow-xl border-4 border-white overflow-hidden">
           <MapContainer center={[35.0222, 135.9619]} zoom={15} style={{ height: '100%', width: '100%' }}>
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+            
+            {/* --- 危険エリアの円を描画 (ChildTrackerと同じ) --- */}
+            {dangerZones.map((zone: any) => (
+              <Circle 
+                key={zone.id} 
+                center={[parseFloat(zone.latitude), parseFloat(zone.longitude)]} 
+                radius={parseFloat(zone.radius)} 
+                pathOptions={{ 
+                  color: '#ef4444', 
+                  fillColor: '#ef4444', 
+                  fillOpacity: 0.2, // 親側は少し薄めにして見やすく
+                  weight: 1 
+                }} 
+              />
+            ))}
+
+            {/* 子供の現在地（危険時のみ） */}
             {isDanger && childPos && (
               <>
                 <RecenterMap coords={childPos} />
-          
-                <Circle 
-                  center={childPos} 
-                  radius={12} 
-                  pathOptions={{ color: 'rgba(255, 255, 255, 0.8)', fillColor: '#ffffff', fillOpacity: 0.3, weight: 1 }} 
-                />
-                <Circle 
-                  center={childPos} 
-                  radius={6} 
-                  pathOptions={{ fillColor: '#4285F4', fillOpacity: 1, color: '#ffffff', weight: 2 }} 
-                />
+                <Circle center={childPos} radius={12} pathOptions={{ color: 'rgba(255, 255, 255, 0.8)', fillColor: '#ffffff', fillOpacity: 0.3, weight: 1 }} />
+                <Circle center={childPos} radius={6} pathOptions={{ fillColor: '#4285F4', fillOpacity: 1, color: '#ffffff', weight: 2 }} />
               </>
             )}
           </MapContainer>
-          {!isDanger && isMonitoring && (
-            <div className="absolute top-4 right-4 bg-white/90 px-4 py-2 rounded-full shadow-sm text-xs font-bold text-indigo-600 z-[1000] border border-indigo-100">
-              プライバシー保護：GPS非表示中
+          
+          {isDanger && (
+            <div className="absolute bottom-4 left-4 z-[1000] bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold animate-pulse flex items-center gap-1">
+              <Navigation size={12} fill="white" /> 自動追尾中
             </div>
           )}
         </div>
 
-        {/* 履歴：住所を表示 */}
+        {/* 履歴 */}
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-indigo-100">
           <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><History size={20}/> 履歴</h3>
           <div className="space-y-3">
             {history.map((log, i) => (
               <div key={i} className="flex flex-col gap-1 p-3 border-b border-slate-50 last:border-0 hover:bg-slate-50 rounded-xl transition">
                 <div className="flex justify-between items-center">
-                  <span className={`font-bold text-sm ${log.status.includes('⚠️') ? 'text-red-500' : 'text-green-600'}`}>
-                    {log.status}
-                  </span>
+                  <span className={`font-bold text-sm ${log.status.includes('⚠️') ? 'text-red-500' : 'text-green-600'}`}>{log.status}</span>
                   <span className="text-slate-400 font-mono text-xs">{log.time}</span>
                 </div>
-                
-                {/* 住所または座標を表示し、クリックでGoogleマップを開けるようにする */}
-                <div className="flex items-center gap-1 text-indigo-500 text-xs mt-1">
-                  <MapPin size={12} className="shrink-0 text-slate-400" />
-                  {log.lat && log.lng ? (
-                    <a 
-                      href={`https://www.google.com/maps?q=${log.lat},${log.lng}`} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="hover:underline flex items-center gap-1"
-                    >
-                      位置を確認：{log.lat.toFixed(4)}, {log.lng.toFixed(4)}
-                      <span className="text-[10px] bg-indigo-50 px-1 rounded text-indigo-400 ml-1">Googleマップで開く</span>
-                    </a>
-                  ) : (
-                    <span className="text-slate-400">位置情報なし</span>
-                  )}
-                </div>
+                {log.lat && (
+                  <div className="flex items-center gap-1 text-indigo-500 text-xs mt-1">
+                    <MapPin size={12} className="text-slate-400" />
+                    <a href={`https://www.google.com/maps?q=${log.lat},${log.lng}`} target="_blank" rel="noreferrer" className="hover:underline">Googleマップで表示</a>
+                  </div>
+                )}
               </div>
             ))}
           </div>

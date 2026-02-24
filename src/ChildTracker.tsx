@@ -4,6 +4,7 @@ import { Shield, AlertTriangle, Settings, Play, Square, MapPin, User, Activity }
 import L from 'leaflet';
 import { supabase } from './supabaseClient';
 
+
 // 地図の自動ズーム制御
 const RecenterMap = ({ coords }: { coords: [number, number] }) => {
   const map = useMap();
@@ -147,38 +148,58 @@ const ChildTracker = () => {
 
         {/* マップ */}
         <div className="h-80 rounded-3xl overflow-hidden shadow-lg border-4 border-white relative">
-          {/* MapContainerの中の書き換え */}
-            <MapContainer center={position} zoom={16} style={{ height: '100%', width: '100%' }}>
-              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-              <RecenterMap coords={position} />
-              <Marker position={position} />
-
-              {/* 修正：dangerZonesが存在し、かつ中身がある時だけ描画するように明示する */}
-              {dangerZones && dangerZones.length > 0 && dangerZones.map((zone: any) => {
-                // 座標が文字列の場合に備えて数値に変換
-                const lat = parseFloat(zone.latitude);
-                const lng = parseFloat(zone.longitude);
-                const rad = parseFloat(zone.radius);
+        <MapContainer center={position} zoom={16} style={{ height: '100%', width: '100%' }}>
+          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+          <RecenterMap coords={position} />
             
-                // 数値が正しくない（NaN）場合は表示しない
-                if (isNaN(lat) || isNaN(lng)) return null;
-            
-                return (
-                  <Circle 
-                    key={zone.id || `${lat}-${lng}`}
-                    center={[lat, lng]} 
-                    radius={rad} 
-                    pathOptions={{ 
-                      color: '#ef4444',     // 明るい赤 (Tailwind red-500)
-                      fillColor: '#ef4444', 
-                      fillOpacity: 0.4,     // 透明度を少し上げる
-                      weight: 2 
-                    }} 
-                  />
-                );
-              })}
-            </MapContainer>
-        </div>
+          {/* --- 危険エリアの円を描画 (ParentDashboardと統一) --- */}
+          {dangerZones && dangerZones.length > 0 && dangerZones.map((zone: any) => {
+            const lat = parseFloat(zone.latitude);
+            const lng = parseFloat(zone.longitude);
+            const rad = parseFloat(zone.radius);
+            if (isNaN(lat) || isNaN(lng)) return null;
+          
+            return (
+              <Circle 
+                key={zone.id || `${lat}-${lng}`}
+                center={[lat, lng]} 
+                radius={rad} 
+                pathOptions={{ 
+                  color: '#ef4444', 
+                  fillColor: '#ef4444', 
+                  fillOpacity: 0.3, 
+                  weight: 2 
+                }} 
+              />
+            );
+          })}
+      
+          {/* --- 子供の現在地表示を Googleマップ風に変更 --- */}
+          {/* 1. 外側の細い白い縁取り（光沢感） */}
+          <Circle 
+            center={position} 
+            radius={12} 
+            pathOptions={{ 
+              color: 'rgba(255, 255, 255, 0.8)', 
+              fillColor: '#ffffff', 
+              fillOpacity: 0.3, 
+              weight: 1 
+            }} 
+          />
+      
+          {/* 2. メインの青いドット（Markerの代わり） */}
+          <Circle 
+            center={position} 
+            radius={6} 
+            pathOptions={{ 
+              color: '#ffffff',      // ドットの白い縁
+              fillColor: '#4285F4',  // Google Blue
+              fillOpacity: 1, 
+              weight: 2 
+            }} 
+          />
+        </MapContainer>
+      </div>
 
         {/* 操作ボタン */}
         <button 
