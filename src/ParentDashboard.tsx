@@ -5,7 +5,18 @@ import { supabase } from './supabaseClient';
 
 const RecenterMap = ({ coords }: { coords: [number, number] }) => {
   const map = useMap();
-  useEffect(() => { if (coords) map.flyTo(coords, 16); }, [coords]);
+  
+  useEffect(() => {
+    if (coords) {
+      // flyTo を使うことで、カクカクせず「スーッ」と動きます
+      // 17 はズームレベルです（お好みで 16-18 くらいが最適）
+      map.flyTo(coords, 17, {
+        animate: true,
+        duration: 1.5 // 1.5秒かけて移動（滑らかさ重視）
+      });
+    }
+  }, [coords, map]); // coords が更新されるたびに発火
+
   return null;
 };
 
@@ -66,7 +77,7 @@ const ParentDashboard = () => {
           if (newLog.is_active) {
               setChildPos([newLog.latitude, newLog.longitude]);
               setIsDanger(true);
-                    
+
               // 履歴に座標を直接入れる
               setHistory(prev => [{ 
                 time: new Date().toLocaleTimeString(), 
@@ -127,6 +138,7 @@ const ParentDashboard = () => {
             {isDanger && childPos && (
               <>
                 <RecenterMap coords={childPos} />
+          
                 <Circle 
                   center={childPos} 
                   radius={12} 
