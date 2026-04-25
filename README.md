@@ -1,73 +1,52 @@
-# React + TypeScript + Vite
+# ここもり ～ここであなたを見守る～
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+「ここもり」は、**SDGs目標11「住み続けられるまちづくりを」**に焦点を当て、子どものプライバシー保護と保護者の安心を両立させるために開発された新しい防犯GPSアプリです。
 
-Currently, two official plugins are available:
+従来の監視アプリは、子どもから「過度な制限」や「プライバシーの侵害」と感じられる傾向があり、約6割の子どもが位置情報を意図的にオフにするなどの対抗策をとっているという現状があります。
+「ここもり」は、**「危険エリアにいる間だけ位置情報を共有する」**という仕組みを採用することで、この課題を解決します。
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+警察庁の犯罪オープンデータや警視庁の速報メールなどの「外部インテリジェンス」と連携し、お子様の現在地付近の危険度をリアルタイムに可視化します。
 
-## React Compiler
+## ✨ 主な機能
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 1. 2つのユーザーモード
+アプリ起動時に「子供側」または「大人側」を選択して利用します。
+* **📱 お子様端末 (Tracker App / 子供側):** 自身の現在地付近にある「危険エリア」がマップ上に表示されます。`Navigator.geolocation` APIとエッジ・ジオフェンシング機能により、危険エリアへの進入を即座に判定しバックエンドへ通知します。
+* **💻 保護者端末 (Dashboard App / 大人側):** 子どもが特定の「危険エリア」を通行している間のみ、GPS情報がリアルタイムで共有されます。React-Leafletを使用した直感的なマップで、お子様の移動に合わせて自動で追従（FlyTo）します。
 
-## Expanding the ESLint configuration
+### 2. 危険エリアの定義と可視化
+危険エリアは、以下の2種類のデータに基づき、マップ上に円で表示されます。
+* **統計的危険エリア（青い円）:** 警察庁の犯罪オープンデータを活用し、過去1年間の事件発生場所から算出します。
+* **直近の危険エリア（赤い円）:** 「メールけいしちょう」から配信される不審者情報などをリアルタイムで取得し、即座に反映します。
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### 3. リスク算出モデル
+危険エリアの半径やカラーレンダリングは、単なる地点表示ではなく、以下の3要素を組み合わせた数理モデルによって動的に決定されます。
+* **犯罪の重大度:** キーワード（凶器、逃走、不審者など）に応じて3段階に分類。
+* **時間経過:** 事件発生からの経過時間とともにリスクが減衰する指数関数モデルを採用。
+* **時間帯:** 夜間（20:00～05:00）は、通常時の1.5倍の重み付けを行います。
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## システム構成
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+本システムは以下の3層アーキテクチャで構築されています。（詳細は `system.md` の構成図を参照してください）
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+### 1. 外部インテリジェンス層 (Data Sources)
+* **警察庁:** 犯罪オープンデータ (分析・統計的リスクの算出)
+* **警視庁:** 配信メール速報 (直近のリアルタイムなリスク抽出)
+* **OpenStreetMap (OSM):** 地図タイル情報の提供
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### 2. クラウド・バックエンド層 (Supabase)
+* **PostgreSQL (DB):** 位置情報やリスクデータの保存。
+* **Supabase Realtime Engine:** WebSocketを利用した超低遅延でのデータ同期（プッシュ配信）。
+* **Auth:** ID照合システムによる「Child ID」と「Parent ID」の安全なマッチングとアクセス制御。
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### 3. アプリケーション層 (React / Leaflet)
+* 保護者用と子供用、それぞれのユースケースに特化したフロントエンドアプリケーション。
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+##  技術スタック
+* **Frontend:** React (Vite), React-Leaflet, Geolocation API
+* **Backend / BaaS:** Supabase (PostgreSQL, Realtime, Auth)
+* **Map & Data:** OpenStreetMap, 警察庁/警視庁 オープンデータ
+
+
+
+---
